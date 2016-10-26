@@ -1,31 +1,29 @@
+//#define PERF
+
 #include <iostream>
 #include <cstdlib>
 
-#include "gl_includes.h"
-
 #include <cmath>
+#include <vector>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <vector>
-#include <ctime>
+
+#include "gl_includes.h"
+#include "legendre.h"
+#include "Perf.h"
 
 using namespace std;
 using namespace glm;
 
-struct Vertex {
-    vec3 position;
-    vec3 color;
-};
-
 bool wireframe = false;
 
 vector<vec3> sphere_positions;
-int vertex_count = 0;
-int index_count = 0;
-int theta_n = 64;
-int phi_n = 32;
-int legendre_index = 0;
+size_t vertex_count = 0;
+size_t index_count = 0;
+size_t theta_n = 64;
+size_t phi_n = 32;
+size_t legendre_index = 0;
 
 const char *legendre_param_names[9] = {
         "Constant",
@@ -58,12 +56,14 @@ const char *var_name = legendre_param_names[0];
 
 static const char* vertex_shader_text =
     "uniform mat4 MVP;\n"
+    "uniform float scale;\n"
     "attribute vec3 vPos;\n"
-    "attribute vec3 vCol;\n"
+    "attribute float vScale;\n"
     "varying vec3 color;\n"
     "void main() {\n"
-    "    gl_Position = MVP * vec4(vPos, 1.0);\n"
-    "    color = vCol;\n"
+    "    float scalar = scale * vScale;\n"
+    "    gl_Position = MVP * vec4(vPos * abs(scalar), 1.0);\n"
+    "    color = scalar > 0.0 ? vec3(0.0, 0.0, 1.0) * scalar : vec3(-1.0, 0.0, 0.0) * scalar;\n"
     "}\n";
 static const char* fragment_shader_text =
     "varying vec3 color;\n"
@@ -72,6 +72,8 @@ static const char* fragment_shader_text =
     "}\n";
 
 void regenerateBuffer();
+
+GLuint vertex_buffer, index_buffer, legendre_buffer, sphere_buffer;
 
 static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (action != GLFW_PRESS) return;
@@ -116,8 +118,9 @@ void glfw_error_callback(int error, const char* description) {
 }
 
 void regenerateSpherePositions() {
+    Perf stat("Regenerate Sphere positions");
     sphere_positions.resize(uint((phi_n + 1) * (theta_n + 1)));
-    int n = 0;
+    size_t n = 0;
     for (int phi_i = 0; phi_i <= phi_n; phi_i++) {
         float phi = float(M_PI) * phi_i / phi_n;
         float y = -cos(phi);
@@ -132,48 +135,45 @@ void regenerateSpherePositions() {
     }
 
     vertex_count = n;
+
+    glBindBuffer(GL_ARRAY_BUFFER, sphere_buffer);
+    glBufferData(GL_ARRAY_BUFFER, n * sizeof(vec3), sphere_positions.data(), GL_STATIC_DRAW);
+}
+
+void regenerateSHBuffer() {
+    Perf stat("Regenerate SH Buffer");
+    vector<float> vertices(9 * vertex_count);
+    for (int n = 0; n < vertex_count; n++) {
+        vec3 pos = sphere_positions[n];
+        vertices[n + 0*vertex_count] = legendre_0_0(pos);
+        vertices[n + 1*vertex_count] = legendre_1_0(pos);
+        vertices[n + 2*vertex_count] = legendre_1_1(pos);
+        vertices[n + 3*vertex_count] = legendre_1_2(pos);
+        vertices[n + 4*vertex_count] = legendre_2_0(pos);
+        vertices[n + 5*vertex_count] = legendre_2_1(pos);
+        vertices[n + 6*vertex_count] = legendre_2_2(pos);
+        vertices[n + 7*vertex_count] = legendre_2_3(pos);
+        vertices[n + 8*vertex_count] = legendre_2_4(pos);
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, legendre_buffer);
+    glBufferData(GL_ARRAY_BUFFER, vertex_count * sizeof(float) * 9, vertices.data(), GL_STATIC_DRAW);
 }
 
 void regenerateBuffer() {
-//    clock_t time = clock();
-    vector<Vertex> vertices(vertex_count);
+    Perf stat("Regenerate legendre buffer");
+    vector<float> vertices(vertex_count);
     for (int n = 0; n < vertex_count; n++) {
         vec3 pos = sphere_positions[n];
-        float legendre_0 = 1.f / 2.f * float(M_1_PI);
-        float legendre_1_scalar = sqrt(3.f) / 2.f * float(M_1_PI);
-        float legendre_1_0 = -legendre_1_scalar * pos.y;
-        float legendre_1_1 =  legendre_1_scalar * pos.z;
-        float legendre_1_2 = -legendre_1_scalar * pos.x;
-        float legendre_2_scalar = sqrt(15.f) / 2.f * float(M_1_PI);
-        float legendre_2_zz_scalar = sqrt(5.f) / 4.f * float(M_1_PI);
-        float legendre_2_0 =  legendre_2_scalar * pos.y * pos.x;
-        float legendre_2_1 = -legendre_2_scalar * pos.y * pos.z;
-        float legendre_2_2 =  legendre_2_zz_scalar * (3 * pos.z * pos.z - 1);
-        float legendre_2_3 = -legendre_2_scalar * pos.z * pos.x;
-        float legendre_2_4 =  legendre_2_scalar / 2.f * (pos.x*pos.x - pos.y*pos.y);
-        float total_scalar = legendre_0 * legendre_params[0] +
-                             legendre_1_0 * legendre_params[1] +
-                             legendre_1_1 * legendre_params[2] +
-                             legendre_1_2 * legendre_params[3] +
-                             legendre_2_0 * legendre_params[4] +
-                             legendre_2_1 * legendre_params[5] +
-                             legendre_2_2 * legendre_params[6] +
-                             legendre_2_3 * legendre_params[7] +
-                             legendre_2_4 * legendre_params[8];
-        vertices[n].position = pos * abs(total_scalar);
-        vertices[n].color = total_scalar > 0 ? vec3(0,0,1) * total_scalar : vec3(-1,0,0) * total_scalar;
+        vertices[n] = legendre_total(pos, legendre_params);
     }
 
-//    clock_t endTime = clock();
-//    cout << "Generated buffer in " << endTime - time << " clocks." << endl;
-//    clock_t bufferStart = clock();
-    glBufferData(GL_ARRAY_BUFFER, vertex_count * sizeof(Vertex), vertices.data(), GL_DYNAMIC_DRAW);
-//    clock_t bufferEnd = clock();
-//    cout << "Transferred buffer to graphics card in " << bufferEnd - bufferStart << " clocks." << endl;
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
+    glBufferData(GL_ARRAY_BUFFER, vertex_count * sizeof(float), vertices.data(), GL_DYNAMIC_DRAW);
 }
 
 void regenerateIndices() {
-    int n = 0;
+    size_t n = 0;
     vector<ivec3> triangles(uint(phi_n * theta_n * 2));
     for (int phi_i = 0; phi_i < phi_n; phi_i++) {
         for (int theta_i = 0; theta_i < theta_n; theta_i++) {
@@ -212,12 +212,11 @@ int main() {
     glfwMakeContextCurrent(window);
     glewInit();
 
-    glfwSwapInterval(1);
+    glfwSwapInterval(0);
 
-    GLuint vertex_buffer, index_buffer, vertex_shader, fragment_shader, program;
-    GLint mvp_location, vpos_location, vcol_location;
+    GLuint vertex_shader, fragment_shader, program;
+    GLuint mvp_location, vpos_location, vscale_location, scale_location;
 
-    regenerateSpherePositions();
 
     checkError();
 
@@ -226,9 +225,19 @@ int main() {
     glBindVertexArray(vao);
     checkError();
 
+    glGenBuffers(1, &sphere_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, sphere_buffer);
+    regenerateSpherePositions();
+    checkError();
+
     glGenBuffers(1, &vertex_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
     regenerateBuffer();
+    checkError();
+
+    glGenBuffers(1, &legendre_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, legendre_buffer);
+    regenerateSHBuffer();
     checkError();
 
     glGenBuffers(1, &index_buffer);
@@ -254,54 +263,156 @@ int main() {
     checkError();
 
     mvp_location = glGetUniformLocation(program, "MVP");
+    scale_location = glGetUniformLocation(program, "scale");
     vpos_location = glGetAttribLocation(program, "vPos");
-    vcol_location = glGetAttribLocation(program, "vCol");
+    vscale_location = glGetAttribLocation(program, "vScale");
     checkError();
 
-    glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
-    checkError();
-    glEnableVertexAttribArray(vpos_location);
-    checkError();
-    glVertexAttribPointer(vpos_location, 3, GL_FLOAT, GL_FALSE,
-                          sizeof(Vertex), (void *) offsetof(Vertex, position));
-    checkError();
-    glEnableVertexAttribArray(vcol_location);
-    checkError();
-    glVertexAttribPointer(vcol_location, 3, GL_FLOAT, GL_FALSE,
-                          sizeof(Vertex), (void *) offsetof(Vertex, color));
-    checkError();
+    glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
 
     glEnable(GL_DEPTH_TEST);
 
-    while (!glfwWindowShouldClose(window)) {
-        float ratio;
-        int width, height;
-        glfwGetFramebufferSize(window, &width, &height);
-        checkError();
-        ratio = width / (float) height;
-        glViewport(0, 0, width, height);
-        checkError();
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        checkError();
-        mat4 m = rotate(mat4(), float(glfwGetTime() * 180 / M_PI), vec3(1,0,0));
-        mat4 p = ortho(-ratio, ratio, -1.f, 1.f, 1.f, -1.f);
-        mat4 mvp = p * m;
+    // We'll always use the sphere_buffer for vPos
+    glBindBuffer(GL_ARRAY_BUFFER, sphere_buffer);
+    checkError();
+    glEnableVertexAttribArray(vpos_location);
+    checkError();
+    glVertexAttribPointer(vpos_location, 3, GL_FLOAT, GL_FALSE, sizeof(vec3), 0);
+    checkError();
 
-        glUseProgram(program);
-        checkError();
-        glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat*) &mvp[0,0]);
-        checkError();
-        glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
-        checkError();
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
-        checkError();
-//        glDrawArrays(GL_POINTS, 0, vertex_count);
-        glDrawElements(GL_TRIANGLES, index_count, GL_UNSIGNED_INT, 0);
-        checkError();
-        glfwSwapBuffers(window);
-        checkError();
-        glfwPollEvents();
-        checkError();
+    // We're going to use an attrib array for vScale, but it will be set up later.
+    glEnableVertexAttribArray(vscale_location);
+    checkError();
+
+    while (!glfwWindowShouldClose(window)) {
+        Perf stat("Frame");
+
+        float ratio;
+        int width, height, viewportSize;
+        mat4 m, p, mvp;
+
+        {
+            Perf stat("Setup frame and clear buffers");
+            glfwGetFramebufferSize(window, &width, &height);
+            checkError();
+            ratio = width / (float) height;
+            viewportSize = height / 5;
+            glViewport(0, 0, width, height);
+            checkError();
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            checkError();
+            m = rotate(mat4(), float(glfwGetTime() * 180 / M_PI), vec3(1, 0, 0));
+        }
+
+        {
+            Perf stat("Setup vertex pointers for first draw");
+            p = ortho(-ratio, ratio, -1.f, 1.f, 1.f, -1.f);
+            mvp = p * m;
+
+            glUseProgram(program);
+            checkError();
+            glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat *) &mvp[0, 0]);
+            glUniform1f(scale_location, 1.f);
+            checkError();
+
+            // draw the base buffer
+            glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
+            checkError();
+            glVertexAttribPointer(vscale_location, 1, GL_FLOAT, GL_FALSE, sizeof(float), 0);
+            checkError();
+        }
+        {
+            Perf stat("Draw base shape");
+            // glDrawArrays(GL_POINTS, 0, vertex_count);
+            glDrawElements(GL_TRIANGLES, index_count, GL_UNSIGNED_INT, 0);
+        }
+
+        // draw the components
+        {
+            Perf stat("Setup unforms and vertex arrays for components");
+            p = ortho(-0.5f, 0.5f, -0.5f, 0.5f, 1.f, -1.f);
+            mvp = p * m;
+            glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat *) &mvp[0, 0]);
+            checkError();
+
+            glBindBuffer(GL_ARRAY_BUFFER, legendre_buffer);
+            checkError();
+        }
+
+        {
+            Perf stat("Draw left side");
+            // left side
+            glViewport(0, 4 * viewportSize, viewportSize, viewportSize);
+            glUniform1f(scale_location, legendre_params[0]);
+            glVertexAttribPointer(vscale_location, 1, GL_FLOAT, GL_FALSE, sizeof(float), (const void *) (0 * sizeof(float) * vertex_count));
+            glDrawElements(GL_TRIANGLES, index_count, GL_UNSIGNED_INT, 0);
+            checkError();
+
+            glViewport(0, 2 * viewportSize, viewportSize, viewportSize);
+            glUniform1f(scale_location, legendre_params[1]);
+            glVertexAttribPointer(vscale_location, 1, GL_FLOAT, GL_FALSE, sizeof(float), (const void *) (1 * sizeof(float) * vertex_count));
+            glDrawElements(GL_TRIANGLES, index_count, GL_UNSIGNED_INT, 0);
+            checkError();
+
+            glViewport(0, 1 * viewportSize, viewportSize, viewportSize);
+            glUniform1f(scale_location, legendre_params[2]);
+            glVertexAttribPointer(vscale_location, 1, GL_FLOAT, GL_FALSE, sizeof(float), (const void *) (2 * sizeof(float) * vertex_count));
+            glDrawElements(GL_TRIANGLES, index_count, GL_UNSIGNED_INT, 0);
+            checkError();
+
+            glViewport(0, 0 * viewportSize, viewportSize, viewportSize);
+            glUniform1f(scale_location, legendre_params[3]);
+            glVertexAttribPointer(vscale_location, 1, GL_FLOAT, GL_FALSE, sizeof(float), (const void *) (3 * sizeof(float) * vertex_count));
+            glDrawElements(GL_TRIANGLES, index_count, GL_UNSIGNED_INT, 0);
+            checkError();
+        }
+
+        {
+            Perf stat("Draw right side");
+            // right side
+            int right = width - viewportSize;
+
+            glViewport(right, 4 * viewportSize, viewportSize, viewportSize);
+            glUniform1f(scale_location, legendre_params[4]);
+            glVertexAttribPointer(vscale_location, 1, GL_FLOAT, GL_FALSE, sizeof(float), (const void *) (4 * sizeof(float) * vertex_count));
+            glDrawElements(GL_TRIANGLES, index_count, GL_UNSIGNED_INT, 0);
+            checkError();
+
+            glViewport(right, 3 * viewportSize, viewportSize, viewportSize);
+            glUniform1f(scale_location, legendre_params[5]);
+            glVertexAttribPointer(vscale_location, 1, GL_FLOAT, GL_FALSE, sizeof(float), (const void *) (5 * sizeof(float) * vertex_count));
+            glDrawElements(GL_TRIANGLES, index_count, GL_UNSIGNED_INT, 0);
+            checkError();
+
+            glViewport(right, 2 * viewportSize, viewportSize, viewportSize);
+            glUniform1f(scale_location, legendre_params[6]);
+            glVertexAttribPointer(vscale_location, 1, GL_FLOAT, GL_FALSE, sizeof(float), (const void *) (6 * sizeof(float) * vertex_count));
+            glDrawElements(GL_TRIANGLES, index_count, GL_UNSIGNED_INT, 0);
+            checkError();
+
+            glViewport(right, 1 * viewportSize, viewportSize, viewportSize);
+            glUniform1f(scale_location, legendre_params[7]);
+            glVertexAttribPointer(vscale_location, 1, GL_FLOAT, GL_FALSE, sizeof(float), (const void *) (7 * sizeof(float) * vertex_count));
+            glDrawElements(GL_TRIANGLES, index_count, GL_UNSIGNED_INT, 0);
+            checkError();
+
+            glViewport(right, 0 * viewportSize, viewportSize, viewportSize);
+            glUniform1f(scale_location, legendre_params[8]);
+            glVertexAttribPointer(vscale_location, 1, GL_FLOAT, GL_FALSE, sizeof(float), (const void *) (8 * sizeof(float) * vertex_count));
+            glDrawElements(GL_TRIANGLES, index_count, GL_UNSIGNED_INT, 0);
+            checkError();
+        }
+
+        {
+            Perf stat("Swap buffers");
+            glfwSwapBuffers(window);
+            checkError();
+        }
+        {
+            Perf stat("Poll events");
+            glfwPollEvents();
+            checkError();
+        }
     }
 
     return 0;

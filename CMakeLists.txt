@@ -15,7 +15,7 @@ link_directories(${LIB})
 include_directories(${OPENGL_INCLUDE_DIRS})
 include_directories(${INCLUDE})
 
-set(SOURCE_FILES main.cpp gl_includes.h)
+set(SOURCE_FILES main.cpp gl_includes.h legendre.h Perf.h)
 add_executable(StupidSHTricks ${SOURCE_FILES})
 
 target_link_libraries(StupidSHTricks ${LIB}/libglew32.a)
