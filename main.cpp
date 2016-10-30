@@ -69,7 +69,10 @@ static const char* fragment_shader_text =
     "    gl_FragColor = vec4(color, 1.0);\n"
     "}\n";
 
+void regenerateIndices();
+void regenerateSpherePositions();
 void regenerateBuffer();
+void regenerateSHBuffer();
 
 GLuint vertex_buffer, index_buffer, legendre_buffer, sphere_buffer;
 
@@ -84,7 +87,7 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
         glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
     }
     else if (key >= GLFW_KEY_1 && key <= GLFW_KEY_9) {
-        legendre_index = key - GLFW_KEY_1;
+        legendre_index = size_t(key - GLFW_KEY_1);
         variable = &legendre_params[legendre_index];
         var_name = legendre_param_names[legendre_index];
         cout << var_name << " = " << *variable << endl;
@@ -108,6 +111,14 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
         for (int c = 0; c < 9; c++) {
             cout << legendre_param_names[c] << " = " << legendre_params[c] << endl;
         }
+    }
+    else if (key == GLFW_KEY_KP_ADD) {
+        theta_n += 2;
+        phi_n += 1;
+        regenerateIndices();
+        regenerateSpherePositions();
+        regenerateSHBuffer();
+        regenerateBuffer();
     }
 }
 
@@ -171,6 +182,7 @@ void regenerateBuffer() {
 }
 
 void regenerateIndices() {
+    Perf stat("Regenerate indices");
     size_t n = 0;
     vector<ivec3> triangles(uint(phi_n * theta_n * 2));
     for (int phi_i = 0; phi_i < phi_n; phi_i++) {
