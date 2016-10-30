@@ -23,6 +23,12 @@ size_t theta_n = 64;
 size_t phi_n = 32;
 size_t legendre_index = 0;
 
+struct Rotation {
+    float startTime;
+    vec3 axis;
+};
+vector<Rotation> rotations;
+
 const char *legendre_param_names[9] = {
         "Constant",
 
@@ -119,6 +125,15 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
         regenerateSpherePositions();
         regenerateSHBuffer();
         regenerateBuffer();
+    }
+    else if (key == GLFW_KEY_KP_8) {
+        rotations.push_back({float(glfwGetTime()), vec3(1,0,0)});
+    } else if (key == GLFW_KEY_KP_4) {
+        rotations.push_back({float(glfwGetTime()), vec3(0,1,0)});
+    } else if (key == GLFW_KEY_KP_2) {
+        rotations.push_back({float(glfwGetTime()), vec3(-1,0,0)});
+    } else if (key == GLFW_KEY_KP_6) {
+        rotations.push_back({float(glfwGetTime()), vec3(0,-1,0)});
     }
 }
 
@@ -314,7 +329,20 @@ int main() {
             checkError();
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             checkError();
-            m = rotate(mat4(), float(glfwGetTime() * 180 / M_PI), vec3(1, 0, 0));
+
+            float now = float(glfwGetTime());
+            int lastValid = 0;
+            for (int c = rotations.size()-1; c >= 0; c--) {
+                Rotation &rot = rotations[c];
+                float rotation = float((now - rot.startTime) * 180 / M_PI);
+                if (rotation < 360) {
+                    m = rotate(m, rotation, rot.axis);
+                    lastValid = c;
+                }
+            }
+            if (lastValid > 0) {
+                rotations.erase(rotations.begin(), rotations.begin() + lastValid);
+            }
         }
 
         {
@@ -350,6 +378,8 @@ int main() {
 
             glBindBuffer(GL_ARRAY_BUFFER, legendre_buffer);
             checkError();
+
+            glClear(GL_DEPTH_BUFFER_BIT); // always draw components on top of base shape. Depth test still necessary since triangles are unordered
         }
 
         {
