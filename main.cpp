@@ -1,5 +1,3 @@
-//#define PERF
-
 #include <iostream>
 #include <cstdlib>
 
@@ -212,11 +210,12 @@ int main() {
     glfwMakeContextCurrent(window);
     glewInit();
 
-    glfwSwapInterval(0);
+    glfwSwapInterval(1);
 
     GLuint vertex_shader, fragment_shader, program;
     GLuint mvp_location, vpos_location, vscale_location, scale_location;
 
+    initPerformanceData();
 
     checkError();
 
@@ -284,9 +283,11 @@ int main() {
     glEnableVertexAttribArray(vscale_location);
     checkError();
 
+    // make sure performance data is clean going into main loop
+    markPerformanceFrame();
+    printPerformanceData();
+    double lastPerfPrintTime = glfwGetTime();
     while (!glfwWindowShouldClose(window)) {
-        Perf stat("Frame");
-
         float ratio;
         int width, height, viewportSize;
         mat4 m, p, mvp;
@@ -412,6 +413,14 @@ int main() {
             Perf stat("Poll events");
             glfwPollEvents();
             checkError();
+        }
+
+        markPerformanceFrame();
+
+        double now = glfwGetTime();
+        if (now - lastPerfPrintTime > 10.0) {
+            printPerformanceData();
+            lastPerfPrintTime = now;
         }
     }
 

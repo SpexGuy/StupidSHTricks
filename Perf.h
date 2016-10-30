@@ -6,25 +6,30 @@
 #define STUPIDSHTRICKS_PERF_H
 
 
-#include <ctime>
-#include <iostream>
+#include <afxres.h>
 
+void initPerformanceData();
+void printPerformanceData();
+void recordPerformanceData(const char *name, const LONGLONG timeElapsed);
+void markPerformanceFrame();
 
 class Perf {
 private:
     const char * const name;
-    const volatile clock_t startTime;
+    LARGE_INTEGER startTime;
 
 public:
     Perf(const char *name) :
-            name(name),
-            startTime(clock())
-    {}
+            name(name)
+    {
+        QueryPerformanceCounter(&startTime);
+    }
 
     ~Perf() {
 #ifdef PERF
-        clock_t endTime = clock();
-        std::cout << name << " : " << endTime - startTime << std::endl;
+        LARGE_INTEGER endTime;
+        QueryPerformanceCounter(&endTime);
+        recordPerformanceData(name, endTime.QuadPart - startTime.QuadPart);
 #endif
     }
 };
