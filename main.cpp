@@ -17,6 +17,8 @@ using namespace glm;
 bool wireframe = false;
 
 vector<vec3> sphere_positions;
+vector<float> legendre_scalars;
+vector<float> shape_scalars;
 size_t vertex_count = 0;
 size_t index_count = 0;
 size_t theta_n = 64;
@@ -79,6 +81,7 @@ void regenerateIndices();
 void regenerateSpherePositions();
 void regenerateBuffer();
 void regenerateSHBuffer();
+void rotateParams();
 
 GLuint vertex_buffer, index_buffer, legendre_buffer, sphere_buffer;
 
@@ -87,53 +90,47 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 
     if (key == GLFW_KEY_ESCAPE) {
         glfwSetWindowShouldClose(window, true);
-    }
-    else if (key == GLFW_KEY_W) {
+    } else if (key == GLFW_KEY_W) {
         wireframe = !wireframe;
         glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
-    }
-    else if (key >= GLFW_KEY_1 && key <= GLFW_KEY_9) {
+    } else if (key >= GLFW_KEY_1 && key <= GLFW_KEY_9) {
         legendre_index = size_t(key - GLFW_KEY_1);
         variable = &legendre_params[legendre_index];
         var_name = legendre_param_names[legendre_index];
         cout << var_name << " = " << *variable << endl;
-    }
-    else if (key == GLFW_KEY_0) {
+    } else if (key == GLFW_KEY_0) {
         *variable = 0;
         cout << var_name << " = " << *variable << endl;
         regenerateBuffer();
-    }
-    else if (key == GLFW_KEY_UP) {
+    } else if (key == GLFW_KEY_UP) {
         *variable += 0.1;
         cout << var_name << " = " << *variable << endl;
         regenerateBuffer();
-    }
-    else if (key == GLFW_KEY_DOWN) {
+    } else if (key == GLFW_KEY_DOWN) {
         *variable -= 0.1;
         cout << var_name << " = " << *variable << endl;
         regenerateBuffer();
-    }
-    else if (key == GLFW_KEY_P) {
+    } else if (key == GLFW_KEY_P) {
         for (int c = 0; c < 9; c++) {
             cout << legendre_param_names[c] << " = " << legendre_params[c] << endl;
         }
-    }
-    else if (key == GLFW_KEY_KP_ADD) {
+    } else if (key == GLFW_KEY_KP_ADD) {
         theta_n += 2;
         phi_n += 1;
         regenerateIndices();
         regenerateSpherePositions();
         regenerateSHBuffer();
         regenerateBuffer();
-    }
-    else if (key == GLFW_KEY_KP_8) {
-        rotations.push_back({float(glfwGetTime()), vec3(1,0,0)});
+    } else if (key == GLFW_KEY_KP_8) {
+        rotations.push_back({float(glfwGetTime()), vec3(1, 0, 0)});
     } else if (key == GLFW_KEY_KP_4) {
-        rotations.push_back({float(glfwGetTime()), vec3(0,1,0)});
+        rotations.push_back({float(glfwGetTime()), vec3(0, 1, 0)});
     } else if (key == GLFW_KEY_KP_2) {
-        rotations.push_back({float(glfwGetTime()), vec3(-1,0,0)});
+        rotations.push_back({float(glfwGetTime()), vec3(-1, 0, 0)});
     } else if (key == GLFW_KEY_KP_6) {
-        rotations.push_back({float(glfwGetTime()), vec3(0,-1,0)});
+        rotations.push_back({float(glfwGetTime()), vec3(0, -1, 0)});
+    } else if (key == GLFW_KEY_R) {
+        rotateParams();
     }
 }
 
@@ -166,34 +163,61 @@ void regenerateSpherePositions() {
 
 void regenerateSHBuffer() {
     Perf stat("Regenerate SH Buffer");
-    vector<float> vertices(9 * vertex_count);
+    legendre_scalars.resize(9 * vertex_count);
     for (int n = 0; n < vertex_count; n++) {
         vec3 pos = sphere_positions[n];
-        vertices[n + 0*vertex_count] = legendre_0_0(pos);
-        vertices[n + 1*vertex_count] = legendre_1_0(pos);
-        vertices[n + 2*vertex_count] = legendre_1_1(pos);
-        vertices[n + 3*vertex_count] = legendre_1_2(pos);
-        vertices[n + 4*vertex_count] = legendre_2_0(pos);
-        vertices[n + 5*vertex_count] = legendre_2_1(pos);
-        vertices[n + 6*vertex_count] = legendre_2_2(pos);
-        vertices[n + 7*vertex_count] = legendre_2_3(pos);
-        vertices[n + 8*vertex_count] = legendre_2_4(pos);
+        legendre_scalars[n + 0*vertex_count] = legendre_0_0(pos);
+        legendre_scalars[n + 1*vertex_count] = legendre_1_0(pos);
+        legendre_scalars[n + 2*vertex_count] = legendre_1_1(pos);
+        legendre_scalars[n + 3*vertex_count] = legendre_1_2(pos);
+        legendre_scalars[n + 4*vertex_count] = legendre_2_0(pos);
+        legendre_scalars[n + 5*vertex_count] = legendre_2_1(pos);
+        legendre_scalars[n + 6*vertex_count] = legendre_2_2(pos);
+        legendre_scalars[n + 7*vertex_count] = legendre_2_3(pos);
+        legendre_scalars[n + 8*vertex_count] = legendre_2_4(pos);
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, legendre_buffer);
-    glBufferData(GL_ARRAY_BUFFER, vertex_count * sizeof(float) * 9, vertices.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertex_count * sizeof(float) * 9, legendre_scalars.data(), GL_STATIC_DRAW);
+}
+
+void rotateParams() {
+    Perf stat("Rotate params");
+    float newParams[9] = {0,0,0,0,0,0,0,0,0};
+
+    int baseIndex = 0;
+    float d_phi = float(M_PI) / phi_n;
+    float d_theta = 2 * float(M_PI) / theta_n;
+    for (int param = 0; param < 9; param++) {
+        int shapeIndex = 0;
+        for (int phi_i = 0; phi_i < phi_n; phi_i++) {
+            float sin_phi = sin(float(M_PI) * phi_i / phi_n);
+            for (int theta_i = 0; theta_i < theta_n; theta_i++) {
+                float integrand = legendre_scalars[baseIndex + shapeIndex + theta_i] * shape_scalars[shapeIndex + theta_i + 1]; // doesn't overflow because there's an extra on the end
+                newParams[param] += integrand * d_phi * d_theta * sin_phi;
+            }
+            shapeIndex += theta_n + 1;
+        }
+        baseIndex += shapeIndex + theta_n + 1;
+    }
+
+    for (int c = 0; c < 9; c++) {
+        legendre_params[c] = newParams[c] * M_PI; // For some reason it's off by a factor of M_PI. TODO: figure out why
+    }
+
+    regenerateBuffer();
 }
 
 void regenerateBuffer() {
     Perf stat("Regenerate legendre buffer");
-    vector<float> vertices(vertex_count);
+    shape_scalars.resize(vertex_count);
     for (int n = 0; n < vertex_count; n++) {
         vec3 pos = sphere_positions[n];
-        vertices[n] = legendre_total(pos, legendre_params);
+        shape_scalars[n] = legendre_total(pos, legendre_params);
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
-    glBufferData(GL_ARRAY_BUFFER, vertex_count * sizeof(float), vertices.data(), GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertex_count * sizeof(float), shape_scalars.data(), GL_DYNAMIC_DRAW);
 }
 
 void regenerateIndices() {
