@@ -25,6 +25,8 @@ size_t theta_n = 64;
 size_t phi_n = 32;
 size_t legendre_index = 0;
 
+int rotationFrames = 0;
+
 struct Rotation {
     float startTime;
     vec3 axis;
@@ -129,8 +131,9 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
         rotations.push_back({float(glfwGetTime()), vec3(-1, 0, 0)});
     } else if (key == GLFW_KEY_KP_6) {
         rotations.push_back({float(glfwGetTime()), vec3(0, -1, 0)});
-    } else if (key == GLFW_KEY_R) {
-        rotateParams();
+    }
+    else if (key == GLFW_KEY_R) {
+        rotationFrames += theta_n;
     }
 }
 
@@ -479,6 +482,11 @@ int main() {
             Perf stat("Poll events");
             glfwPollEvents();
             checkError();
+        }
+
+        if (rotationFrames > 0) {
+            rotateParams();
+            rotationFrames--;
         }
 
         markPerformanceFrame();
