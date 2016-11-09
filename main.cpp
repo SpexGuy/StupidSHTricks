@@ -145,6 +145,9 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
         rotationFrames += theta_n;
         antiRotationFrames += theta_n;
     }
+    else if (key == GLFW_KEY_S) {
+        rotationFrames++;
+    }
 }
 
 void glfw_error_callback(int error, const char* description) {
@@ -199,19 +202,26 @@ void rotateParams() {
     float newParams[9] = {0,0,0,0,0,0,0,0,0};
 
     int baseIndex = 0;
-    float d_phi = float(M_PI) / phi_n;
     float d_theta = 2 * float(M_PI) / theta_n;
+    float phi_offset = float(M_PI) * 0.5f / phi_n;
     for (int param = 0; param < 9; param++) {
         int shapeIndex = 0;
-        for (int phi_i = 0; phi_i < phi_n; phi_i++) {
-            float sin_phi = sin(float(M_PI) * phi_i / phi_n);
+        for (int phi_i = 0; phi_i <= phi_n; phi_i++) {
+            float phi = phi_i * float(M_PI) / phi_n;
+            float d_phi;
+            if (phi_i == 0 || phi_i == phi_n) {
+                d_phi = -cos(phi_offset) + 1;
+            } else {
+                d_phi = cos(phi - phi_offset) - cos(phi + phi_offset);
+            }
             for (int theta_i = 0; theta_i < theta_n; theta_i++) {
+                float d_surface = d_phi * d_theta;
                 float integrand = legendre_scalars[baseIndex + shapeIndex + theta_i] * shape_scalars[shapeIndex + theta_i + 1]; // doesn't overflow because there's an extra on the end
-                newParams[param] += integrand * d_phi * d_theta * sin_phi;
+                newParams[param] += integrand * d_surface;
             }
             shapeIndex += theta_n + 1;
         }
-        baseIndex += shapeIndex + theta_n + 1;
+        baseIndex += shapeIndex;
     }
 
     for (int c = 0; c < 9; c++) {
