@@ -374,7 +374,7 @@ int main() {
 
         {
             Perf stat("Setup vertex pointers for first draw");
-            p = ortho(-ratio, ratio, -1.f, 1.f, 1.f, -1.f);
+            p = ortho(-ratio, ratio, -1.f, 1.f, 10.f, -10.f);
             mvp = p * m;
 
             glUseProgram(program);
@@ -398,7 +398,7 @@ int main() {
         // draw the components
         {
             Perf stat("Setup unforms and vertex arrays for components");
-            p = ortho(-0.5f, 0.5f, -0.5f, 0.5f, 1.f, -1.f);
+            p = ortho(-0.5f, 0.5f, -0.5f, 0.5f, 10.f, -10.f);
             mvp = p * m;
             glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat *) &mvp[0, 0]);
             checkError();
