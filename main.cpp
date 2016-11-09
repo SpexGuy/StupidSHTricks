@@ -26,6 +26,7 @@ size_t phi_n = 32;
 size_t legendre_index = 0;
 
 int rotationFrames = 0;
+int antiRotationFrames = 0;
 
 struct Rotation {
     float startTime;
@@ -117,8 +118,13 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
             cout << legendre_param_names[c] << " = " << legendre_params[c] << endl;
         }
     } else if (key == GLFW_KEY_KP_ADD) {
-        theta_n += 2;
-        phi_n += 1;
+        if (mods & GLFW_MOD_SHIFT) {
+            theta_n += 20;
+            phi_n += 10;
+        } else {
+            theta_n += 2;
+            phi_n += 1;
+        }
         regenerateIndices();
         regenerateSpherePositions();
         regenerateSHBuffer();
@@ -132,8 +138,12 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
     } else if (key == GLFW_KEY_KP_6) {
         rotations.push_back({float(glfwGetTime()), vec3(0, -1, 0)});
     }
+    else if (key == GLFW_KEY_I) {
+        rotationFrames += theta_n;
+    }
     else if (key == GLFW_KEY_R) {
         rotationFrames += theta_n;
+        antiRotationFrames += theta_n;
     }
 }
 
@@ -370,6 +380,11 @@ int main() {
             if (lastValid > 0) {
                 rotations.erase(rotations.begin(), rotations.begin() + lastValid);
             }
+
+            if (antiRotationFrames > 0) {
+                float rotation = antiRotationFrames * 360.f / theta_n;
+                m = rotate(m, rotation, vec3(0,-1,0));
+            }
         }
 
         {
@@ -487,6 +502,9 @@ int main() {
         if (rotationFrames > 0) {
             rotateParams();
             rotationFrames--;
+        }
+        if (antiRotationFrames > 0) {
+            antiRotationFrames--;
         }
 
         markPerformanceFrame();
