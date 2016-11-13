@@ -315,15 +315,15 @@ void loadCubemap(const char *filename) {
     stbi_image_free(pixels);
 }
 
-void checkShaderError(GLuint program) {
+void checkShaderError(GLuint shader) {
     GLint success = 0;
-    glGetShaderiv(program, GL_COMPILE_STATUS, &success);
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
     if (success) return;
 
     cout << "Shader Compile Failed." << endl;
 
     GLint logSize = 0;
-    glGetShaderiv(program, GL_INFO_LOG_LENGTH, &logSize);
+    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &logSize);
     if (logSize == 0) {
         cout << "No log found." << endl;
         return;
@@ -331,8 +331,30 @@ void checkShaderError(GLuint program) {
 
     GLchar *log = new GLchar[logSize];
 
-    glGetShaderInfoLog(program, logSize, &logSize, log);
+    glGetShaderInfoLog(shader, logSize, &logSize, log);
 
+    cout << log << endl;
+
+    delete[] log;
+}
+
+void checkLinkError(GLuint program) {
+    GLint success = 0;
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (success) return;
+
+    cout << "Shader link failed." << endl;
+
+    GLint logSize = 0;
+    glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logSize);
+    if (logSize == 0) {
+        cout << "No log found." << endl;
+        return;
+    }
+
+    GLchar *log = new GLchar[logSize];
+
+    glGetProgramInfoLog(program, logSize, &logSize, log);
     cout << log << endl;
 
     delete[] log;
@@ -399,7 +421,7 @@ int main() {
     glGenTextures(1, &cubemap);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, cubemap);
-    loadCubemap("assets\\ToTheMoonRocket.jpg");
+    loadCubemap("assets/ToTheMoonRocket.jpg");
 
     vertex_shader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertex_shader, 1, &vertex_shader_text, NULL);
@@ -418,6 +440,7 @@ int main() {
     glAttachShader(program, fragment_shader);
     glLinkProgram(program);
     glValidateProgram(program);
+    checkLinkError(program);
     checkError();
 
 
