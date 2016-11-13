@@ -6,6 +6,7 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <stb/stb_image.h>
 
 #include "gl_includes.h"
 #include "legendre.h"
@@ -24,6 +25,7 @@ size_t index_count = 0;
 size_t theta_n = 64;
 size_t phi_n = 32;
 size_t legendre_index = 0;
+bool textured = false;
 
 int rotationFrames = 0;
 int antiRotationFrames = 0;
@@ -69,15 +71,25 @@ static const char* vertex_shader_text =
     "attribute vec3 vPos;\n"
     "attribute float vScale;\n"
     "varying vec3 color;\n"
+    "varying vec2 texPos;\n"
     "void main() {\n"
     "    float scalar = scale * vScale;\n"
     "    gl_Position = MVP * vec4(vPos * abs(scalar), 1.0);\n"
     "    color = scalar > 0.0 ? vec3(0.0, 0.0, 1.0) * scalar : vec3(-1.0, 0.0, 0.0) * scalar;\n"
+    "    texPos = (vPos.xy + vec2(1.0,1.0)) * (scalar > 0.0 ? -0.5 : 0.5);\n"
     "}\n";
 static const char* fragment_shader_text =
+    "#version 400\n"
     "varying vec3 color;\n"
+    "varying vec2 texPos;\n"
+    "uniform bool textured;\n"
+    "uniform sampler2D tex;\n"
     "void main() {\n"
-    "    gl_FragColor = vec4(color, 1.0);\n"
+    "    if (textured) {\n"
+    "        gl_FragColor = texture(tex, texPos);\n"
+    "    } else {\n"
+    "        gl_FragColor = vec4(color, 1.0);\n"
+    "    }\n"
     "}\n";
 
 void regenerateIndices();
@@ -117,7 +129,14 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
         for (int c = 0; c < 9; c++) {
             cout << legendre_param_names[c] << " = " << legendre_params[c] << endl;
         }
-    } else if (key == GLFW_KEY_KP_ADD) {
+    }
+
+    else if (key == GLFW_KEY_T) {
+        textured = !textured;
+        cout << "Textured = " << (textured ? "true" : "false") << endl;
+    }
+
+    else if (key == GLFW_KEY_KP_ADD) {
         if (mods & GLFW_MOD_SHIFT) {
             theta_n += 20;
             phi_n += 10;
@@ -129,7 +148,9 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
         regenerateSpherePositions();
         regenerateSHBuffer();
         regenerateBuffer();
-    } else if (key == GLFW_KEY_KP_8) {
+    }
+
+    else if (key == GLFW_KEY_KP_8) {
         rotations.push_back({float(glfwGetTime()), vec3(1, 0, 0)});
     } else if (key == GLFW_KEY_KP_4) {
         rotations.push_back({float(glfwGetTime()), vec3(0, 1, 0)});
@@ -137,11 +158,15 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
         rotations.push_back({float(glfwGetTime()), vec3(-1, 0, 0)});
     } else if (key == GLFW_KEY_KP_6) {
         rotations.push_back({float(glfwGetTime()), vec3(0, -1, 0)});
+    } else if (key == GLFW_KEY_KP_5) {
+        rotations.clear();
+        rotationFrames = 0;
+        antiRotationFrames = 0;
     }
+
     else if (key == GLFW_KEY_I) {
         rotationFrames += theta_n;
-    }
-    else if (key == GLFW_KEY_R) {
+    } else if (key == GLFW_KEY_R) {
         rotationFrames += theta_n;
         antiRotationFrames += theta_n;
     }
@@ -253,12 +278,74 @@ void regenerateIndices() {
     index_count = n * 3;
 }
 
+void loadCubemap(const char *filename) {
+    int width, height, bpp;
+    unsigned char *pixels = stbi_load(filename, &width, &height, &bpp, STBI_default);
+    if (pixels == nullptr) {
+        cout << "Failed to load image " << filename << " (" << stbi_failure_reason() << ")" << endl;
+        return;
+    }
+    cout << "Loaded " << filename << ", " << height << 'x' << width << ", comp = " << bpp << endl;
+    int idx = 0;
+    for (int c = 0; c < 8; c++) {
+        for (int d = 0; d < 4; d++) {
+            printf("%02d %02d %02d %02d  ", pixels[idx], pixels[idx+1], pixels[idx+2], pixels[idx+2]);
+            idx += 4;
+        }
+        cout << endl;
+    }
+    cout << "..." << endl;
+
+    GLenum format;
+    switch(bpp) {
+    case STBI_rgb:
+        format = GL_RGB;
+        break;
+    case STBI_rgb_alpha:
+        format = GL_RGBA;
+        break;
+    default:
+        cout << "Unsupported format: " << bpp << endl;
+        return;
+    }
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, format, GL_UNSIGNED_BYTE, pixels);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    stbi_image_free(pixels);
+}
+
+void checkShaderError(GLuint program) {
+    GLint success = 0;
+    glGetShaderiv(program, GL_COMPILE_STATUS, &success);
+    if (success) return;
+
+    cout << "Shader Compile Failed." << endl;
+
+    GLint logSize = 0;
+    glGetShaderiv(program, GL_INFO_LOG_LENGTH, &logSize);
+    if (logSize == 0) {
+        cout << "No log found." << endl;
+        return;
+    }
+
+    GLchar *log = new GLchar[logSize];
+
+    glGetShaderInfoLog(program, logSize, &logSize, log);
+
+    cout << log << endl;
+
+    delete[] log;
+}
+
 int main() {
     if (!glfwInit()) {
         cout << "Failed to init GLFW" << endl;
         exit(-1);
     }
     cout << "GLFW Successfully Started" << endl;
+
+
 
     glfwSetErrorCallback(glfw_error_callback);
 
@@ -277,7 +364,8 @@ int main() {
     glfwSwapInterval(1);
 
     GLuint vertex_shader, fragment_shader, program;
-    GLuint mvp_location, vpos_location, vscale_location, scale_location;
+    GLuint mvp_location, vpos_location, vscale_location, scale_location, textured_location;
+    GLuint cubemap;
 
     initPerformanceData();
 
@@ -308,15 +396,22 @@ int main() {
     regenerateIndices();
     checkError();
 
+    glGenTextures(1, &cubemap);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, cubemap);
+    loadCubemap("assets\\ToTheMoonRocket.jpg");
+
     vertex_shader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertex_shader, 1, &vertex_shader_text, NULL);
     glCompileShader(vertex_shader);
     checkError();
+    checkShaderError(vertex_shader);
 
     fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fragment_shader, 1, &fragment_shader_text, NULL);
     glCompileShader(fragment_shader);
     checkError();
+    checkShaderError(fragment_shader);
 
     program = glCreateProgram();
     glAttachShader(program, vertex_shader);
@@ -325,8 +420,10 @@ int main() {
     glValidateProgram(program);
     checkError();
 
+
     mvp_location = glGetUniformLocation(program, "MVP");
     scale_location = glGetUniformLocation(program, "scale");
+    textured_location = glGetUniformLocation(program, "textured");
     vpos_location = glGetAttribLocation(program, "vPos");
     vscale_location = glGetAttribLocation(program, "vScale");
     checkError();
@@ -396,6 +493,7 @@ int main() {
             checkError();
             glUniformMatrix4fv(mvp_location, 1, GL_FALSE, (const GLfloat *) &mvp[0, 0]);
             glUniform1f(scale_location, 1.f);
+            glUniform1i(textured_location, textured);
             checkError();
 
             // draw the base buffer
