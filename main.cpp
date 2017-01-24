@@ -76,7 +76,7 @@ static const char* vertex_shader_text =
     "    float scalar = scale * vScale;\n"
     "    gl_Position = MVP * vec4(vPos * abs(scalar), 1.0);\n"
     "    color = scalar > 0.0 ? vec3(0.0, 0.0, 1.0) * scalar : vec3(-1.0, 0.0, 0.0) * scalar;\n"
-    "    texPos = (vPos.xy + vec2(1.0,1.0)) * (scalar > 0.0 ? -0.5 : 0.5);\n"
+    "    texPos = (vPos.xy + vec2(1.0,1.0)) * vec2(0.5, `scalar > 0.0 ? -0.5 : 0.5);\n"
     "}\n";
 static const char* fragment_shader_text =
     "#version 400\n"
@@ -228,7 +228,7 @@ void rotateParams() {
     float d_theta = 2 * float(M_PI) / theta_n;
     for (int param = 0; param < 9; param++) {
         int shapeIndex = 0;
-        for (int phi_i = 0; phi_i < phi_n; phi_i++) {
+        for (int phi_i = 0; phi_i <= phi_n; phi_i++) {
             float sin_phi = sin(float(M_PI) * phi_i / phi_n);
             for (int theta_i = 0; theta_i < theta_n; theta_i++) {
                 float integrand = legendre_scalars[baseIndex + shapeIndex + theta_i] * shape_scalars[shapeIndex + theta_i + 1]; // doesn't overflow because there's an extra on the end
@@ -236,7 +236,7 @@ void rotateParams() {
             }
             shapeIndex += theta_n + 1;
         }
-        baseIndex += shapeIndex + theta_n + 1;
+        baseIndex += shapeIndex;
     }
 
     for (int c = 0; c < 9; c++) {
