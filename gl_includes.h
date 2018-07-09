@@ -2,20 +2,24 @@
 // Created by Martin Wickham on 10/11/2016.
 //
 
-#ifndef STUPIDSHTRICKS_GLERROR_H
-#define STUPIDSHTRICKS_GLERROR_H
+#ifndef GLERROR_H
+#define GLERROR_H
 
 #include <iostream>
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
+#define GLSL(src) "#version 400\n" #src
+
 #define checkError() _check_gl_error(__FILE__,__LINE__)
 
-void _check_gl_error(const char *file, int line) {
+static bool _check_gl_error(const char *file, int line) {
+    bool hasError = false;
     GLenum err (glGetError());
 
     while(err!=GL_NO_ERROR) {
+        hasError = true;
         const char *error;
 
         switch(err) {
@@ -29,6 +33,7 @@ void _check_gl_error(const char *file, int line) {
         std::cerr << "GL_" << error <<" - "<<file<<":"<<line<<std::endl;
         err=glGetError();
     }
+    return hasError;
 }
 
-#endif //STUPIDSHTRICKS_GLERROR_H
+#endif //GLERROR_H

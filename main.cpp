@@ -66,29 +66,31 @@ float *variable = &legendre_params[0];
 const char *var_name = legendre_param_names[0];
 
 static const char* vertex_shader_text =
+    "#version 400\n"
     "uniform mat4 MVP;\n"
     "uniform float scale;\n"
-    "attribute vec3 vPos;\n"
-    "attribute float vScale;\n"
-    "varying vec3 color;\n"
-    "varying vec2 texPos;\n"
+    "in vec3 vPos;\n"
+    "in float vScale;\n"
+    "out vec3 color;\n"
+    "out vec2 texPos;\n"
     "void main() {\n"
     "    float scalar = scale * vScale;\n"
     "    gl_Position = MVP * vec4(vPos * abs(scalar), 1.0);\n"
     "    color = scalar > 0.0 ? vec3(0.0, 0.0, 1.0) * scalar : vec3(-1.0, 0.0, 0.0) * scalar;\n"
-    "    texPos = (vPos.xy + vec2(1.0,1.0)) * vec2(0.5, `scalar > 0.0 ? -0.5 : 0.5);\n"
+    "    texPos = (vPos.xy + vec2(1.0,1.0)) * vec2(0.5, scalar > 0.0 ? -0.5 : 0.5);\n"
     "}\n";
 static const char* fragment_shader_text =
     "#version 400\n"
-    "varying vec3 color;\n"
-    "varying vec2 texPos;\n"
+    "in vec3 color;\n"
+    "in vec2 texPos;\n"
     "uniform bool textured;\n"
     "uniform sampler2D tex;\n"
+    "out vec4 fragColor;\n"
     "void main() {\n"
     "    if (textured) {\n"
-    "        gl_FragColor = texture(tex, texPos);\n"
+    "        fragColor = texture2D(tex, texPos);\n"
     "    } else {\n"
-    "        gl_FragColor = vec4(color, 1.0);\n"
+    "        fragColor = vec4(color, 1.0);\n"
     "    }\n"
     "}\n";
 
