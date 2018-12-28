@@ -15,6 +15,9 @@
 using namespace std;
 using namespace glm;
 
+const int MIN_THETA_N = 32;
+const int MIN_PHI_N = 16;
+
 bool wireframe = false;
 
 vector<vec3> sphere_positions;
@@ -22,8 +25,8 @@ vector<float> legendre_scalars;
 vector<float> shape_scalars;
 size_t vertex_count = 0;
 size_t index_count = 0;
-size_t theta_n = 64;
-size_t phi_n = 32;
+size_t theta_n = 128;
+size_t phi_n = 64;
 size_t legendre_index = 0;
 bool textured = false;
 
@@ -138,7 +141,7 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
         cout << "Textured = " << (textured ? "true" : "false") << endl;
     }
 
-    else if (key == GLFW_KEY_KP_ADD) {
+    else if (key == GLFW_KEY_KP_ADD || key == GLFW_KEY_EQUAL) {
         if (mods & GLFW_MOD_SHIFT) {
             theta_n += 20;
             phi_n += 10;
@@ -151,22 +154,37 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
         regenerateSHBuffer();
         regenerateBuffer();
     }
+    else if (key == GLFW_KEY_KP_SUBTRACT || key == GLFW_KEY_MINUS) {
+        if (mods & GLFW_MOD_SHIFT) {
+            theta_n -= 20;
+            phi_n -= 10;
+        } else {
+            theta_n -= 2;
+            phi_n -= 1;
+        }
+        if (theta_n < MIN_THETA_N) theta_n = MIN_THETA_N;
+        if (phi_n < MIN_PHI_N) phi_n = MIN_PHI_N;
+        regenerateIndices();
+        regenerateSpherePositions();
+        regenerateSHBuffer();
+        regenerateBuffer();
+    }
 
-    else if (key == GLFW_KEY_KP_8) {
+    else if (key == GLFW_KEY_KP_8 || key == GLFW_KEY_I) {
         rotations.push_back({float(glfwGetTime()), vec3(1, 0, 0)});
-    } else if (key == GLFW_KEY_KP_4) {
+    } else if (key == GLFW_KEY_KP_4 || key == GLFW_KEY_J) {
         rotations.push_back({float(glfwGetTime()), vec3(0, 1, 0)});
-    } else if (key == GLFW_KEY_KP_2) {
+    } else if (key == GLFW_KEY_KP_2 || key == GLFW_KEY_M) {
         rotations.push_back({float(glfwGetTime()), vec3(-1, 0, 0)});
-    } else if (key == GLFW_KEY_KP_6) {
+    } else if (key == GLFW_KEY_KP_6 || key == GLFW_KEY_L) {
         rotations.push_back({float(glfwGetTime()), vec3(0, -1, 0)});
-    } else if (key == GLFW_KEY_KP_5) {
+    } else if (key == GLFW_KEY_KP_5 || key == GLFW_KEY_K) {
         rotations.clear();
         rotationFrames = 0;
         antiRotationFrames = 0;
     }
 
-    else if (key == GLFW_KEY_I) {
+    else if (key == GLFW_KEY_E) {
         rotationFrames += theta_n;
     } else if (key == GLFW_KEY_R) {
         rotationFrames += theta_n;
