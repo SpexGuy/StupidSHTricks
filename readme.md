@@ -24,15 +24,19 @@ make
 - w: Toggle wireframe
 - t: Toggle texturing
 - numpad plus: increase model resolution
--- alternate: equals
+- - alternate: equals
 - shift, numpad plus: really increase model resolution
--- alternate: shift, equals
+- - alternate: shift, equals
+- numpad minus: decrease model resolution
+- - alternate: minus
+- shift, numpad minus: really decrease model resolution
+- - alternate: shift, minus
 - numpad 8/4/2/6: rotate camera
--- alternate: j/m/l/i
+- - alternate: j/m/l/i
 - numpad 5: stop rotating camera
--- alternate: k
-- t: change the parameters to rotate the harmonic
-- r: do (i) but also rotate the camera with the model
+- - alternate: k
+- e: change the parameters to rotate the harmonic
+- r: do (e) but also rotate the camera with the model
 
 Parameter rotations are done "the dumb way". The model is integrated against a
 rotated version of itself to produce new coefficients.  This integration
