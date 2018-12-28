@@ -88,7 +88,7 @@ static const char* fragment_shader_text =
     "out vec4 fragColor;\n"
     "void main() {\n"
     "    if (textured) {\n"
-    "        fragColor = texture2D(tex, texPos);\n"
+    "        fragColor = texture(tex, texPos);\n"
     "    } else {\n"
     "        fragColor = vec4(color, 1.0);\n"
     "    }\n"
@@ -369,12 +369,14 @@ int main() {
     }
     cout << "GLFW Successfully Started" << endl;
 
-
-
     glfwSetErrorCallback(glfw_error_callback);
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+#ifdef APPLE
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+#endif
     GLFWwindow* window = glfwCreateWindow(640, 480, "Stupid SH Tricks", NULL, NULL);
     if (!window) {
         cout << "Failed to create window" << endl;

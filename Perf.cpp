@@ -2,6 +2,7 @@
 // Created by Martin Wickham on 10/29/2016.
 //
 
+#ifdef PERF
 #include <iostream>
 #include <vector>
 #include <cstdio>
@@ -76,3 +77,4 @@ void markPerformanceFrame() {
     frame_count++;
 }
 
+#endif // PERF

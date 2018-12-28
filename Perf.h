@@ -5,6 +5,7 @@
 #ifndef STUPIDSHTRICKS_PERF_H
 #define STUPIDSHTRICKS_PERF_H
 
+#ifdef PERF
 
 #include <afxres.h>
 
@@ -26,13 +27,23 @@ public:
     }
 
     ~Perf() {
-#ifdef PERF
         LARGE_INTEGER endTime;
         QueryPerformanceCounter(&endTime);
         recordPerformanceData(name, endTime.QuadPart - startTime.QuadPart);
-#endif
     }
 };
 
+#else
+
+static inline void initPerformanceData() {}
+static inline void printPerformanceData() {}
+static inline void recordPerformanceData(const char *name, const long long timeElapsed) {}
+static inline void markPerformanceFrame() {}
+
+struct Perf {
+  Perf(const char *name) {}
+};
+
+#endif //PERF
 
 #endif //STUPIDSHTRICKS_PERF_H
