@@ -24,17 +24,17 @@ make
 - w: Toggle wireframe
 - t: Toggle texturing
 - numpad plus: increase model resolution
-- - alternate: equals
+  - alternate: equals
 - shift, numpad plus: really increase model resolution
-- - alternate: shift, equals
+  - alternate: shift, equals
 - numpad minus: decrease model resolution
-- - alternate: minus
+  - alternate: minus
 - shift, numpad minus: really decrease model resolution
-- - alternate: shift, minus
+  - alternate: shift, minus
 - numpad 8/4/2/6: rotate camera
-- - alternate: j/m/l/i
+  - alternate: j/m/l/i
 - numpad 5: stop rotating camera
-- - alternate: k
+  - alternate: k
 - e: change the parameters to rotate the harmonic
 - r: do (e) but also rotate the camera with the model
 
